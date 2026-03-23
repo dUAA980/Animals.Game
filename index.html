@@ -1,0 +1,2539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animal Arcade</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            overflow: hidden;
+            background: radial-gradient(circle at 20% 20%, #1f3f66, #0b1a2e 55%, #050b15);
+            font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+            color: #f3f7ff;
+        }
+        .hidden { display: none !important; }
+
+        #canvas-container { width: 100vw; height: 100vh; }
+        #canvas-container canvas { display: block; }
+
+        #ui {
+            position: fixed; top: 20px; left: 20px;
+            color: #00ff88; font-size: 22px; font-weight: bold;
+            text-shadow: 0 0 10px #00ff88; z-index: 100;
+            pointer-events: none; line-height: 1.8;
+        }
+        #level-badge {
+            position: fixed; top: 20px; right: 20px;
+            background: rgba(0, 0, 0, 0.65); border: 2px solid #00ff88;
+            color: #00ff88; font-size: 18px; font-weight: bold;
+            padding: 10px 18px; border-radius: 14px;
+            text-align: center; z-index: 100; pointer-events: none;
+        }
+        #hint {
+            position: fixed; bottom: 28px; left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.75); font-size: 17px;
+            z-index: 100; pointer-events: none; text-align: center;
+        }
+        #banner {
+            position: fixed; top: 17%; left: 50%;
+            transform: translateX(-50%);
+            color: #66ddff; font-size: 50px; font-weight: bold;
+            text-shadow: 0 0 22px #66ddff;
+            z-index: 150; pointer-events: none;
+            opacity: 0; transition: opacity 0.3s;
+        }
+        #banner.show { opacity: 1; }
+
+        .screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 200; text-align: center;
+            background: rgba(0, 0, 0, 0.78);
+        }
+        .screen.active { display: flex; }
+        .screen h1 { font-size: 58px; font-weight: bold; margin-bottom: 16px; }
+        .screen p  { font-size: 24px; margin-bottom: 28px; color: #ccc; }
+
+        .btn {
+            padding: 14px 30px;
+            font-size: 18px;
+            font-weight: 700;
+            border: none;
+            border-radius: 26px;
+            cursor: pointer;
+            color: #001a0d;
+            background: linear-gradient(135deg, #00ff88, #00cc55);
+            box-shadow: 0 10px 30px rgba(0, 255, 136, 0.35);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 14px 35px rgba(0, 255, 136, 0.45); }
+
+        .btn.alt {
+            color: #eff4ff;
+            background: linear-gradient(135deg, #3f86ff, #1d58df);
+            box-shadow: 0 10px 30px rgba(61, 119, 255, 0.35);
+        }
+        .btn.alt:hover { box-shadow: 0 14px 35px rgba(61, 119, 255, 0.45); }
+
+        .btn.warn {
+            color: #fff3f3;
+            background: linear-gradient(135deg, #f35a5a, #bf2626);
+            box-shadow: 0 10px 30px rgba(243, 90, 90, 0.35);
+        }
+        .btn.warn:hover { box-shadow: 0 14px 35px rgba(243, 90, 90, 0.45); }
+
+        #screen-gameover h1 { color: #ff4444; text-shadow: 0 0 24px #ff4444; }
+        #screen-levelwin h1 { color: #00ff88; text-shadow: 0 0 24px #00ff88; }
+        #screen-win h1 { color: #ffe066; text-shadow: 0 0 28px #ffe066; font-size: 72px; }
+
+        #screen-gameover .actions,
+        #screen-win .actions {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        #flash {
+            position: fixed; inset: 0;
+            pointer-events: none; z-index: 300;
+            opacity: 0; transition: opacity 0.15s;
+        }
+        #flash.show { opacity: 1; }
+
+        #level-intro {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%) scale(0.3);
+            text-align: center; pointer-events: none;
+            z-index: 310; opacity: 0;
+            transition: opacity 0.25s, transform 0.4s cubic-bezier(.17, .67, .35, 1.4);
+        }
+        #level-intro.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        #level-intro .intro-num {
+            font-size: 110px; font-weight: 900; line-height: 1;
+            letter-spacing: 6px; font-family: "Arial Black", Arial, sans-serif;
+        }
+        #level-intro .intro-name {
+            font-size: 30px; font-weight: bold; margin-top: 8px;
+        }
+
+        #runner-actions {
+            position: fixed;
+            top: 22px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 210;
+        }
+
+        #home-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 22px;
+            background:
+                radial-gradient(circle at 15% 8%, rgba(255, 162, 227, 0.3), transparent 34%),
+                radial-gradient(circle at 88% 82%, rgba(156, 255, 219, 0.24), transparent 40%),
+                radial-gradient(circle at 65% 25%, rgba(162, 206, 255, 0.26), transparent 36%),
+                linear-gradient(145deg, rgba(20, 26, 56, 0.94), rgba(14, 32, 58, 0.95));
+            animation: homeFade 0.6s ease;
+        }
+
+        #home-screen::before,
+        #home-screen::after {
+            content: "";
+            position: absolute;
+            border-radius: 999px;
+            filter: blur(4px);
+            opacity: 0.65;
+            pointer-events: none;
+            animation: floatBlob 9s ease-in-out infinite;
+        }
+
+        #home-screen::before {
+            width: 140px;
+            height: 140px;
+            top: 8%;
+            left: 8%;
+            background: radial-gradient(circle at 30% 30%, #ffe0f5, #ff8fd4);
+        }
+
+        #home-screen::after {
+            width: 170px;
+            height: 170px;
+            right: 8%;
+            bottom: 10%;
+            animation-delay: 1.6s;
+            background: radial-gradient(circle at 30% 30%, #dcfff2, #7af2cd);
+        }
+
+        @keyframes floatBlob {
+            0% { transform: translateY(0px) scale(1); }
+            50% { transform: translateY(-14px) scale(1.06); }
+            100% { transform: translateY(0px) scale(1); }
+        }
+
+        @keyframes homeFade {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .home-card {
+            width: min(980px, 96vw);
+            border: 1px solid rgba(255, 207, 240, 0.46);
+            border-radius: 24px;
+            padding: 26px;
+            background: linear-gradient(145deg, rgba(41, 31, 78, 0.82), rgba(19, 46, 78, 0.84));
+            backdrop-filter: blur(8px);
+            box-shadow: 0 26px 60px rgba(0, 0, 0, 0.42);
+            position: relative;
+            z-index: 2;
+        }
+
+        .home-title {
+            font-size: clamp(30px, 5vw, 54px);
+            text-align: center;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            color: #ffe4f3;
+            text-shadow: 0 0 16px rgba(255, 195, 230, 0.45);
+        }
+
+        .home-sub {
+            text-align: center;
+            color: #daf2ff;
+            margin-bottom: 22px;
+            font-size: clamp(14px, 2.3vw, 20px);
+        }
+
+        .home-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .panel {
+            border: 1px solid rgba(198, 233, 255, 0.28);
+            border-radius: 18px;
+            padding: 18px;
+            background: linear-gradient(145deg, rgba(36, 56, 96, 0.52), rgba(40, 34, 84, 0.5));
+        }
+
+        .panel h2 {
+            font-size: clamp(18px, 2.6vw, 30px);
+            color: #eef7ff;
+            margin-bottom: 10px;
+        }
+
+        .panel p {
+            color: #b7c9e5;
+            margin-bottom: 12px;
+        }
+
+        .character-list,
+        .game-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .character-list {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .chip {
+            border: 1px solid rgba(163, 226, 255, 0.45);
+            border-radius: 999px;
+            padding: 10px 14px;
+            background: rgba(4, 20, 36, 0.45);
+            color: #ecf8ff;
+            cursor: pointer;
+            font-weight: 700;
+            transition: transform 0.15s, border-color 0.2s, background 0.2s;
+        }
+
+        .chip:hover { transform: translateY(-1px); border-color: rgba(89, 233, 198, 0.8); }
+
+        .chip.active {
+            border-color: #3af4bf;
+            background: rgba(36, 154, 120, 0.38);
+            color: #dcfff4;
+        }
+
+        .char-card {
+            border: 1px solid rgba(255, 220, 242, 0.44);
+            border-radius: 16px;
+            padding: 10px;
+            background: linear-gradient(150deg, rgba(48, 78, 124, 0.78), rgba(73, 44, 116, 0.66));
+            color: #f4fbff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: transform 0.15s, border-color 0.2s, box-shadow 0.2s;
+            text-align: left;
+        }
+
+        .char-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 181, 229, 0.9);
+            box-shadow: 0 12px 20px rgba(255, 167, 226, 0.2);
+        }
+
+        .char-card.active {
+            border-color: #9ffff0;
+            background: linear-gradient(150deg, rgba(61, 135, 145, 0.84), rgba(64, 92, 173, 0.72));
+            box-shadow: 0 0 0 2px rgba(159, 255, 240, 0.25);
+        }
+
+        .char-avatar {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            display: grid;
+            place-items: center;
+            font-size: 30px;
+            background: radial-gradient(circle at 30% 20%, #fff3fb, #ffd6ef 58%, #ffc3e8);
+            box-shadow: inset 0 -6px 12px rgba(255, 132, 203, 0.2);
+            flex: 0 0 52px;
+        }
+
+        .char-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .char-name {
+            font-size: 16px;
+            font-weight: 800;
+            color: #f5fbff;
+        }
+
+        .char-note {
+            font-size: 12px;
+            color: #d3e8ff;
+        }
+
+        #selected-character {
+            font-weight: 700;
+            color: #8fffd2;
+        }
+
+        #xo-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 520;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 14px;
+            background:
+                radial-gradient(circle at 12% 12%, rgba(255, 145, 216, 0.33), transparent 34%),
+                radial-gradient(circle at 85% 85%, rgba(151, 255, 222, 0.24), transparent 38%),
+                linear-gradient(165deg, #0e1931, #162b4d);
+        }
+
+        #xo-screen.active { display: flex; }
+
+        .xo-card {
+            width: min(430px, 95vw);
+            max-height: 94vh;
+            overflow: auto;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 194, 233, 0.5);
+            background: linear-gradient(155deg, rgba(35, 25, 72, 0.9), rgba(16, 45, 74, 0.87));
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.42);
+            padding: 16px;
+        }
+
+        .xo-card h2 {
+            font-size: clamp(24px, 6vw, 34px);
+            margin-bottom: 6px;
+            color: #ffe2f4;
+            text-align: center;
+        }
+
+        .xo-subtitle {
+            text-align: center;
+            color: #d5f7ef;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .xo-score {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .xo-score span {
+            text-align: center;
+            font-size: 13px;
+            border: 1px solid rgba(220, 255, 246, 0.3);
+            border-radius: 12px;
+            padding: 6px 8px;
+            background: rgba(9, 30, 46, 0.45);
+            color: #def8ff;
+        }
+
+        .xo-status {
+            text-align: center;
+            color: #fff2fb;
+            margin-bottom: 10px;
+            font-size: 16px;
+            min-height: 24px;
+            font-weight: 700;
+        }
+
+        .xo-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .xo-cell {
+            aspect-ratio: 1 / 1;
+            border: 1px solid rgba(255, 228, 246, 0.52);
+            border-radius: 14px;
+            background: linear-gradient(145deg, rgba(68, 43, 117, 0.86), rgba(40, 75, 118, 0.94));
+            color: #fff7ff;
+            font-size: clamp(30px, 10vw, 48px);
+            font-weight: 900;
+            cursor: pointer;
+            transition: transform 0.12s, border-color 0.15s, filter 0.2s;
+        }
+
+        .xo-cell:hover {
+            transform: scale(1.03);
+            border-color: #ffc1e7;
+            filter: brightness(1.08);
+        }
+
+        .xo-cell.mark-x { color: #9ce3ff; text-shadow: 0 0 14px rgba(156, 227, 255, 0.7); }
+        .xo-cell.mark-o { color: #ffb6de; text-shadow: 0 0 14px rgba(255, 182, 222, 0.7); }
+
+        .xo-cell.pop {
+            animation: popIn 0.2s ease-out;
+        }
+
+        .xo-cell.win {
+            background: linear-gradient(145deg, rgba(86, 194, 166, 0.95), rgba(39, 145, 134, 0.95));
+            border-color: #baffed;
+            color: #062b25;
+            text-shadow: none;
+            animation: winPulse 0.8s ease-in-out infinite;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.7); opacity: 0.6; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes winPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .xo-actions {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .xo-actions .btn {
+            font-size: 14px;
+            padding: 10px 16px;
+            border-radius: 18px;
+        }
+
+        #memory-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 521;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 14px;
+            background:
+                radial-gradient(circle at 15% 12%, rgba(255, 221, 148, 0.35), transparent 34%),
+                radial-gradient(circle at 82% 82%, rgba(128, 255, 208, 0.22), transparent 36%),
+                linear-gradient(165deg, #1a2140, #162f43);
+        }
+
+        #memory-screen.active { display: flex; }
+
+        .memory-card-wrap {
+            width: min(620px, 96vw);
+            max-height: 94vh;
+            overflow: auto;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 238, 191, 0.55);
+            background: linear-gradient(155deg, rgba(67, 49, 117, 0.9), rgba(36, 76, 97, 0.88));
+            box-shadow: 0 20px 52px rgba(0, 0, 0, 0.42);
+            padding: 14px;
+        }
+
+        .memory-title {
+            text-align: center;
+            color: #ffeab0;
+            font-size: clamp(24px, 6vw, 34px);
+            margin-bottom: 6px;
+        }
+
+        .memory-sub {
+            text-align: center;
+            color: #d9fef7;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .memory-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .memory-stats span {
+            text-align: center;
+            font-size: 13px;
+            border: 1px solid rgba(238, 255, 250, 0.35);
+            border-radius: 12px;
+            padding: 6px 8px;
+            background: rgba(8, 30, 44, 0.45);
+            color: #e6f9ff;
+        }
+
+        .memory-difficulty {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .memory-difficulty .chip {
+            padding: 9px 12px;
+            background: rgba(11, 28, 51, 0.5);
+        }
+
+        .memory-difficulty .chip.active {
+            border-color: #ffe6a6;
+            background: rgba(226, 184, 67, 0.25);
+            color: #fff2c4;
+        }
+
+        .memory-board {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+            justify-content: center;
+            align-items: stretch;
+        }
+
+        .memory-board.easy {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .memory-board.medium {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .memory-board.hard {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .memory-item {
+            border: none;
+            padding: 0;
+            background: transparent;
+            cursor: pointer;
+            perspective: 900px;
+            min-width: 0;
+            width: 100%;
+            display: block;
+        }
+
+        .memory-face {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            border-radius: 12px;
+            position: relative;
+            display: block;
+            transform-style: preserve-3d;
+            transition: transform 0.35s ease;
+        }
+
+        .memory-item.open .memory-face,
+        .memory-item.matched .memory-face {
+            transform: rotateY(180deg);
+        }
+
+        .memory-front,
+        .memory-back {
+            position: absolute;
+            inset: 0;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            border: 1px solid rgba(255, 235, 174, 0.45);
+            backface-visibility: hidden;
+            overflow: hidden;
+            font-size: clamp(24px, 6vw, 34px);
+        }
+
+        .memory-front {
+            background: linear-gradient(145deg, rgba(72, 43, 119, 0.92), rgba(22, 96, 120, 0.92));
+            color: #ffe0a8;
+        }
+
+        .memory-back {
+            transform: rotateY(180deg);
+            background: linear-gradient(145deg, rgba(255, 245, 226, 0.95), rgba(223, 253, 237, 0.95));
+            color: #23354e;
+        }
+
+        .memory-front-icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            font-size: clamp(22px, 5vw, 34px);
+            line-height: 1;
+        }
+
+        .memory-front-icon small {
+            font-size: 11px;
+            color: #fff5c8;
+            letter-spacing: 0.4px;
+        }
+
+        .memory-back-icon {
+            font-size: clamp(36px, 8vw, 54px);
+            line-height: 1;
+        }
+
+        .memory-item.matched .memory-back {
+            border-color: #9dffd8;
+            box-shadow: inset 0 0 0 2px rgba(119, 242, 200, 0.35);
+        }
+
+        .memory-actions {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .memory-actions .btn {
+            font-size: 14px;
+            padding: 10px 16px;
+            border-radius: 18px;
+        }
+
+        #bunny-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 522;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 14px;
+            background:
+                radial-gradient(circle at 14% 10%, rgba(255, 194, 232, 0.34), transparent 32%),
+                radial-gradient(circle at 86% 82%, rgba(187, 255, 196, 0.24), transparent 36%),
+                linear-gradient(165deg, #231f4f, #183a47);
+        }
+
+        #bunny-screen.active { display: flex; }
+
+        .bunny-wrap {
+            width: min(560px, 96vw);
+            max-height: 94vh;
+            overflow: auto;
+            border-radius: 22px;
+            border: 1px solid rgba(255, 223, 240, 0.5);
+            background: linear-gradient(150deg, rgba(72, 47, 123, 0.9), rgba(31, 88, 101, 0.88));
+            box-shadow: 0 22px 52px rgba(0, 0, 0, 0.42);
+            padding: 16px;
+        }
+
+        .bunny-title {
+            text-align: center;
+            color: #ffe4b8;
+            font-size: clamp(24px, 6vw, 34px);
+            margin-bottom: 6px;
+        }
+
+        .bunny-sub {
+            text-align: center;
+            color: #e3fff8;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .bunny-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .bunny-stats span {
+            text-align: center;
+            font-size: 13px;
+            border: 1px solid rgba(230, 255, 247, 0.32);
+            border-radius: 12px;
+            padding: 6px 8px;
+            background: rgba(9, 31, 45, 0.44);
+            color: #ecfbff;
+        }
+
+        .bunny-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .bunny-hole {
+            aspect-ratio: 1 / 1;
+            border: 1px solid rgba(255, 236, 180, 0.38);
+            border-radius: 18px;
+            background: linear-gradient(180deg, rgba(176, 235, 199, 0.92), rgba(70, 145, 108, 0.95));
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.12s ease, filter 0.15s ease;
+        }
+
+        .bunny-hole:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.03);
+        }
+
+        .bunny-hole::after {
+            content: '';
+            position: absolute;
+            left: 15%;
+            right: 15%;
+            bottom: 8%;
+            height: 24%;
+            background: radial-gradient(circle at 50% 40%, #5b3d28, #392312);
+            border-radius: 999px;
+        }
+
+        .bunny-pop {
+            position: absolute;
+            left: 50%;
+            bottom: 12%;
+            transform: translate(-50%, 120%);
+            font-size: clamp(34px, 8vw, 54px);
+            line-height: 1;
+            transition: transform 0.18s ease;
+            pointer-events: none;
+        }
+
+        .bunny-hole.active .bunny-pop {
+            transform: translate(-50%, 0%);
+        }
+
+        .bunny-hole.hit .bunny-pop {
+            transform: translate(-50%, -10%) scale(1.15);
+        }
+
+        .bunny-actions {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .bunny-actions .btn {
+            font-size: 14px;
+            padding: 10px 16px;
+            border-radius: 18px;
+        }
+
+        #rps-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 523;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 14px;
+            background:
+                radial-gradient(circle at 12% 10%, rgba(255, 214, 132, 0.3), transparent 32%),
+                radial-gradient(circle at 86% 82%, rgba(136, 228, 255, 0.22), transparent 36%),
+                linear-gradient(160deg, #221d4a, #17364d);
+        }
+
+        #rps-screen.active { display: flex; }
+
+        .rps-wrap {
+            width: min(520px, 96vw);
+            border-radius: 22px;
+            border: 1px solid rgba(255, 232, 191, 0.45);
+            background: linear-gradient(150deg, rgba(79, 56, 127, 0.9), rgba(31, 80, 108, 0.88));
+            box-shadow: 0 22px 52px rgba(0, 0, 0, 0.42);
+            padding: 16px;
+        }
+
+        .rps-title {
+            text-align: center;
+            color: #ffe6b9;
+            font-size: clamp(24px, 6vw, 34px);
+            margin-bottom: 6px;
+        }
+
+        .rps-sub {
+            text-align: center;
+            color: #e3fbff;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .rps-score {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .rps-score span {
+            text-align: center;
+            font-size: 13px;
+            border: 1px solid rgba(230, 255, 247, 0.32);
+            border-radius: 12px;
+            padding: 6px 8px;
+            background: rgba(9, 31, 45, 0.44);
+            color: #ecfbff;
+        }
+
+        .rps-stage {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .rps-hand {
+            border: 1px solid rgba(255, 232, 190, 0.34);
+            border-radius: 18px;
+            padding: 14px;
+            background: rgba(11, 31, 51, 0.4);
+            text-align: center;
+        }
+
+        .rps-hand strong {
+            display: block;
+            color: #fff1c5;
+            margin-bottom: 8px;
+        }
+
+        .rps-emoji {
+            display: block;
+            font-size: clamp(38px, 10vw, 64px);
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+
+        .rps-label {
+            color: #e7fbff;
+            font-size: 14px;
+            min-height: 20px;
+        }
+
+        .rps-status {
+            text-align: center;
+            color: #fff3da;
+            font-weight: 700;
+            margin-bottom: 12px;
+            min-height: 22px;
+        }
+
+        .rps-choices {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .rps-choice {
+            border: 1px solid rgba(255, 221, 183, 0.36);
+            border-radius: 16px;
+            padding: 12px 8px;
+            background: linear-gradient(145deg, rgba(74, 52, 124, 0.92), rgba(38, 105, 126, 0.92));
+            color: #fff8ed;
+            cursor: pointer;
+            transition: transform 0.14s ease, filter 0.15s ease;
+        }
+
+        .rps-choice:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.05);
+        }
+
+        .rps-choice .rps-emoji {
+            margin-bottom: 4px;
+        }
+
+        .rps-actions {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .rps-actions .btn {
+            font-size: 14px;
+            padding: 10px 16px;
+            border-radius: 18px;
+        }
+
+        @keyframes shake {
+            0%   { transform: translate(0, 0) rotate(0deg); }
+            15%  { transform: translate(-9px, 6px) rotate(-2deg); }
+            30%  { transform: translate(9px, -6px) rotate(2deg); }
+            45%  { transform: translate(-6px, 4px) rotate(-1deg); }
+            60%  { transform: translate(6px, -4px) rotate(1deg); }
+            80%  { transform: translate(-3px, 2px) rotate(-0.5deg); }
+            100% { transform: translate(0, 0) rotate(0deg); }
+        }
+        body.shake { animation: shake 0.6s ease-out; }
+
+        @media (max-width: 900px) {
+            .home-grid { grid-template-columns: 1fr; }
+            #ui { font-size: 18px; }
+            #level-badge { font-size: 15px; }
+            .btn { font-size: 16px; padding: 12px 22px; }
+            .screen h1 { font-size: 44px; }
+            .screen p { font-size: 20px; }
+            .xo-card { width: min(370px, 95vw); padding: 12px; }
+            .xo-actions .btn { width: 100%; }
+            .memory-card-wrap { width: min(370px, 95vw); padding: 12px; }
+            .memory-board.easy { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+            .memory-board.medium { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+            .memory-board.hard { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+            .memory-actions .btn { width: 100%; }
+            .bunny-wrap { width: min(370px, 95vw); padding: 12px; }
+            .bunny-actions .btn { width: 100%; }
+            .rps-wrap { width: min(370px, 95vw); padding: 12px; }
+            .rps-stage,
+            .rps-choices { grid-template-columns: 1fr; }
+            .rps-actions .btn { width: 100%; }
+            .character-list { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 520px) {
+            .memory-card-wrap {
+                width: 98vw;
+                padding: 10px;
+            }
+
+            .memory-board {
+                gap: 8px;
+            }
+
+            .memory-back-icon {
+                font-size: 32px;
+            }
+
+            .memory-front-icon {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div id="canvas-container" class="hidden"></div>
+
+<div id="flash" class="runner-ui hidden"></div>
+<div id="level-intro" class="runner-ui hidden">
+    <div class="intro-num" id="intro-num">LEVEL 1</div>
+    <div class="intro-name" id="intro-name">CANDY LANE</div>
+</div>
+
+<div id="ui" class="runner-ui hidden">
+    <div>Score: <span id="score">0</span></div>
+    <div>Time: <span id="timer">20</span>s</div>
+</div>
+
+<div id="level-badge" class="runner-ui hidden">
+    Level <span id="lvl-num">1</span> / 4<br>
+    <span id="lvl-name" style="font-size:14px;color:#aaffcc;">LEFT / RIGHT</span>
+</div>
+
+<div id="hint" class="runner-ui hidden">Arrow keys to dodge left / right</div>
+<div id="banner" class="runner-ui hidden">LEVEL 1!</div>
+<div id="runner-actions" class="runner-ui hidden">
+    <button class="btn warn" onclick="goHomeFromRunner()">HOME</button>
+</div>
+
+<div id="home-screen">
+    <div class="home-card">
+        <h1 class="home-title">Animal Arcade Home</h1>
+        <p class="home-sub">Pick your character, choose a game, and play from one place.</p>
+
+        <div class="home-grid">
+            <section class="panel">
+                <h2>Change Character</h2>
+                <p>Current character: <span id="selected-character">Cat</span></p>
+                <div class="character-list">
+                    <button class="char-card char-btn active" data-character="cat" aria-label="Choose Cat">
+                        <span class="char-avatar" role="img" aria-hidden="true">🐱</span>
+                        <span class="char-meta">
+                            <span class="char-name">Cat</span>
+                            <span class="char-note">Quick and playful</span>
+                        </span>
+                    </button>
+                    <button class="char-card char-btn" data-character="dog" aria-label="Choose Dog">
+                        <span class="char-avatar" role="img" aria-hidden="true">🐶</span>
+                        <span class="char-meta">
+                            <span class="char-name">Dog</span>
+                            <span class="char-note">Loyal runner</span>
+                        </span>
+                    </button>
+                    <button class="char-card char-btn" data-character="bunny" aria-label="Choose Bunny">
+                        <span class="char-avatar" role="img" aria-hidden="true">🐰</span>
+                        <span class="char-meta">
+                            <span class="char-name">Bunny</span>
+                            <span class="char-note">Bouncy jumper</span>
+                        </span>
+                    </button>
+                    <button class="char-card char-btn" data-character="fox" aria-label="Choose Fox">
+                        <span class="char-avatar" role="img" aria-hidden="true">🦊</span>
+                        <span class="char-meta">
+                            <span class="char-name">Fox</span>
+                            <span class="char-note">Sneaky speedster</span>
+                        </span>
+                    </button>
+                </div>
+            </section>
+
+            <section class="panel">
+                <h2>Play Games</h2>
+                <p>Choose what you want to play from the home page.</p>
+                <div class="game-list">
+                    <button class="btn" id="play-runner-btn">Play Runner Game</button>
+                    <button class="btn alt" id="play-xo-btn">Play XO Game</button>
+                    <button class="btn" id="play-memory-btn">Play Match Pairs</button>
+                    <button class="btn alt" id="play-bunny-btn">Play Bunny Tap</button>
+                    <button class="btn" id="play-rps-btn">Play Rock Paper Scissors</button>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<div id="xo-screen">
+    <div class="xo-card">
+        <h2>XO Game</h2>
+        <p class="xo-subtitle">2 Players On One Screen</p>
+        <div class="xo-score">
+            <span id="score-x">X: 0</span>
+            <span id="score-draw">Draw: 0</span>
+            <span id="score-o">O: 0</span>
+        </div>
+        <div class="xo-status" id="xo-status">Player X turn</div>
+        <div class="xo-board" id="xo-board">
+            <button class="xo-cell" data-index="0"></button>
+            <button class="xo-cell" data-index="1"></button>
+            <button class="xo-cell" data-index="2"></button>
+            <button class="xo-cell" data-index="3"></button>
+            <button class="xo-cell" data-index="4"></button>
+            <button class="xo-cell" data-index="5"></button>
+            <button class="xo-cell" data-index="6"></button>
+            <button class="xo-cell" data-index="7"></button>
+            <button class="xo-cell" data-index="8"></button>
+        </div>
+        <div class="xo-actions">
+            <button class="btn" id="xo-restart-btn">Restart XO</button>
+            <button class="btn warn" id="xo-home-btn">Back Home</button>
+        </div>
+    </div>
+</div>
+
+<div id="memory-screen">
+    <div class="memory-card-wrap">
+        <h2 class="memory-title">Match Pairs</h2>
+        <p class="memory-sub">Flip 2 cards and find the same pair.</p>
+        <div class="memory-difficulty">
+            <button class="chip memory-level active" data-level="easy">Easy</button>
+            <button class="chip memory-level" data-level="medium">Medium</button>
+            <button class="chip memory-level" data-level="hard">Hard</button>
+        </div>
+        <div class="memory-stats">
+            <span id="memory-moves">Moves: 0</span>
+            <span id="memory-found">Pairs: 0/6</span>
+            <span id="memory-status">Find a pair!</span>
+        </div>
+        <div class="memory-board" id="memory-board"></div>
+        <div class="memory-actions">
+            <button class="btn" id="memory-restart-btn">Restart Match</button>
+            <button class="btn warn" id="memory-home-btn">Back Home</button>
+        </div>
+    </div>
+</div>
+
+<div id="bunny-screen">
+    <div class="bunny-wrap">
+        <h2 class="bunny-title">Bunny Tap</h2>
+        <p class="bunny-sub">Tap the bunny as fast as you can before time runs out.</p>
+        <div class="bunny-stats">
+            <span id="bunny-score">Score: 0</span>
+            <span id="bunny-time">Time: 20</span>
+            <span id="bunny-best">Best: 0</span>
+        </div>
+        <div class="bunny-grid" id="bunny-grid">
+            <button class="bunny-hole" data-index="0"><span class="bunny-pop">🐰</span></button>
+            <button class="bunny-hole" data-index="1"><span class="bunny-pop">🐰</span></button>
+            <button class="bunny-hole" data-index="2"><span class="bunny-pop">🐰</span></button>
+            <button class="bunny-hole" data-index="3"><span class="bunny-pop">🐰</span></button>
+            <button class="bunny-hole" data-index="4"><span class="bunny-pop">🐰</span></button>
+            <button class="bunny-hole" data-index="5"><span class="bunny-pop">🐰</span></button>
+            <button class="bunny-hole" data-index="6"><span class="bunny-pop">🐰</span></button>
+            <button class="bunny-hole" data-index="7"><span class="bunny-pop">🐰</span></button>
+            <button class="bunny-hole" data-index="8"><span class="bunny-pop">🐰</span></button>
+        </div>
+        <div class="bunny-actions">
+            <button class="btn" id="bunny-start-btn">Start Bunny Tap</button>
+            <button class="btn" id="bunny-restart-btn">Restart</button>
+            <button class="btn warn" id="bunny-home-btn">Back Home</button>
+        </div>
+    </div>
+</div>
+
+<div id="rps-screen">
+    <div class="rps-wrap">
+        <h2 class="rps-title">Rock Paper Scissors</h2>
+        <p class="rps-sub">Choose one, then see if you beat the computer.</p>
+        <div class="rps-score">
+            <span id="rps-player-score">You: 0</span>
+            <span id="rps-draw-score">Draw: 0</span>
+            <span id="rps-computer-score">CPU: 0</span>
+        </div>
+        <div class="rps-stage">
+            <div class="rps-hand">
+                <strong>You</strong>
+                <span class="rps-emoji" id="rps-player-emoji">❔</span>
+                <span class="rps-label" id="rps-player-label">Pick a move</span>
+            </div>
+            <div class="rps-hand">
+                <strong>Computer</strong>
+                <span class="rps-emoji" id="rps-computer-emoji">❔</span>
+                <span class="rps-label" id="rps-computer-label">Waiting...</span>
+            </div>
+        </div>
+        <div class="rps-status" id="rps-status">Choose Rock, Paper, or Scissors.</div>
+        <div class="rps-choices">
+            <button class="rps-choice" data-choice="rock"><span class="rps-emoji">🪨</span><span>Rock</span></button>
+            <button class="rps-choice" data-choice="paper"><span class="rps-emoji">📄</span><span>Paper</span></button>
+            <button class="rps-choice" data-choice="scissors"><span class="rps-emoji">✂️</span><span>Scissors</span></button>
+        </div>
+        <div class="rps-actions">
+            <button class="btn" id="rps-reset-btn">Reset Score</button>
+            <button class="btn warn" id="rps-home-btn">Back Home</button>
+        </div>
+    </div>
+</div>
+
+<div id="screen-gameover" class="screen">
+    <h1>GAME OVER!</h1>
+    <p>Score: <span id="go-score">0</span></p>
+    <div class="actions">
+        <button class="btn" onclick="restartGame()">TRY AGAIN</button>
+        <button class="btn warn" onclick="goHomeFromRunner()">HOME</button>
+    </div>
+</div>
+
+<div id="screen-levelwin" class="screen">
+    <h1 id="lw-title">LEVEL DONE!</h1>
+    <p id="lw-sub">Get ready for Level 2...</p>
+</div>
+
+<div id="screen-win" class="screen">
+    <h1>YOU WIN!</h1>
+    <p>Final Score: <span id="win-score">0</span></p>
+    <div class="actions">
+        <button class="btn" onclick="restartGame()">PLAY AGAIN</button>
+        <button class="btn warn" onclick="goHomeFromRunner()">HOME</button>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const LEVELS = [
+    { name: 'CANDY LANE', pattern: 'forward', duration: 20, spawnRate: 1.5, baseSpeed: 0.13, duck: false },
+    { name: 'BARRIER RUN', pattern: 'mixed', duration: 20, spawnRate: 1.4, baseSpeed: 0.16, duck: true },
+    { name: 'FENCE JUMP', pattern: 'jump', duration: 20, spawnRate: 1.0, baseSpeed: 0.22, duck: true, jump: true },
+    { name: 'SUPER RUSH', pattern: 'jump', duration: 30, spawnRate: 0.55, baseSpeed: 0.42, duck: true, jump: true }
+];
+
+const HINTS = [
+    'Arrow Left / Right: dodge candies',
+    'Arrow Left / Right / Down: dodge and duck barriers',
+    'Arrow Left / Right / Up / Down: jump fences and duck barriers',
+    'Final level: fast dodge, jump, and duck'
+];
+
+const LEVEL_THEMES = [
+    { sky: 0x1e3050, fog: 0x1e3050, flash: '#00ffaa', numCol: '#00ff88', nameCol: '#aaffcc' },
+    { sky: 0x18183a, fog: 0x18183a, flash: '#ff44aa', numCol: '#ff88dd', nameCol: '#ffaadd' },
+    { sky: 0x102008, fog: 0x1a3010, flash: '#aaff00', numCol: '#88ff22', nameCol: '#ccff88' },
+    { sky: 0x2a0505, fog: 0x2a0505, flash: '#ff2200', numCol: '#ff4422', nameCol: '#ffaa88' }
+];
+
+const CANDY_COLS = [0xff2255, 0xff66bb, 0xffdd00, 0x00ddff, 0x88ff00, 0xff8822, 0xcc44ff, 0xff4488, 0x00ffcc];
+const WIN_LINES = [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8],
+    [0, 3, 6], [1, 4, 7], [2, 5, 8],
+    [0, 4, 8], [2, 4, 6]
+];
+
+let scene, camera, renderer, clock;
+let cat;
+let obstacles = [];
+let particles = [];
+let level = 0;
+let levelTime = 0;
+let spawnTimer = 0;
+let score = 0;
+let gameRunning = false;
+let bannerTO = null;
+let keys = {};
+let catVelY = 0;
+let playerCharacter = 'cat';
+
+let xoBoard = Array(9).fill('');
+let xoOver = false;
+let xoTurn = 'X';
+let xoScoreX = 0;
+let xoScoreO = 0;
+let xoScoreDraw = 0;
+
+const MEMORY_BASE = ['🐶', '🐱', '🐰', '🦊', '🐸', '🐼'];
+const MEMORY_LEVELS = {
+    easy: 4,
+    medium: 6,
+    hard: 8
+};
+let memoryDeck = [];
+let memoryOpen = [];
+let memoryMoves = 0;
+let memoryPairsFound = 0;
+let memoryLock = false;
+let memoryLevel = 'easy';
+
+let bunnyScore = 0;
+let bunnyTime = 20;
+let bunnyBest = 0;
+let bunnyActiveIndex = -1;
+let bunnyGameRunning = false;
+let bunnyMoveTimeout = null;
+let bunnyTickInterval = null;
+
+const RPS_EMOJI = {
+    rock: '🪨',
+    paper: '📄',
+    scissors: '✂️'
+};
+let rpsPlayerScore = 0;
+let rpsComputerScore = 0;
+let rpsDrawScore = 0;
+
+window.addEventListener('load', () => {
+    clock = new THREE.Clock();
+    initRenderer();
+    buildScene();
+    buildCat();
+    setupInput();
+    setupHome();
+    setupXO();
+    setupMemoryGame();
+    setupBunnyGame();
+    setupRPSGame();
+    showHome();
+    animate();
+});
+
+function setupHome() {
+    document.getElementById('play-runner-btn').addEventListener('click', startRunnerGame);
+    document.getElementById('play-xo-btn').addEventListener('click', showXO);
+    document.getElementById('play-memory-btn').addEventListener('click', showMemoryGame);
+    document.getElementById('play-bunny-btn').addEventListener('click', showBunnyGame);
+    document.getElementById('play-rps-btn').addEventListener('click', showRPSGame);
+
+    document.querySelectorAll('.char-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const character = btn.dataset.character;
+            setCharacter(character);
+        });
+    });
+
+    setCharacter('cat');
+}
+
+function setCharacter(character) {
+    playerCharacter = character;
+    document.querySelectorAll('.char-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.character === character);
+    });
+    document.getElementById('selected-character').textContent = character.charAt(0).toUpperCase() + character.slice(1);
+    buildCat();
+}
+
+function showHome() {
+    gameRunning = false;
+    stopBunnyGame();
+    hideScreens();
+    setRunnerVisible(false);
+    document.getElementById('xo-screen').classList.remove('active');
+    document.getElementById('memory-screen').classList.remove('active');
+    document.getElementById('bunny-screen').classList.remove('active');
+    document.getElementById('rps-screen').classList.remove('active');
+    document.getElementById('home-screen').classList.remove('hidden');
+}
+
+function startRunnerGame() {
+    stopBunnyGame();
+    document.getElementById('home-screen').classList.add('hidden');
+    document.getElementById('xo-screen').classList.remove('active');
+    document.getElementById('memory-screen').classList.remove('active');
+    document.getElementById('bunny-screen').classList.remove('active');
+    document.getElementById('rps-screen').classList.remove('active');
+    setRunnerVisible(true);
+    restartGame();
+}
+
+function goHomeFromRunner() {
+    gameRunning = false;
+    hideScreens();
+    obstacles.forEach(o => scene.remove(o));
+    particles.forEach(p => scene.remove(p));
+    obstacles = [];
+    particles = [];
+    showHome();
+}
+
+function setRunnerVisible(show) {
+    document.getElementById('canvas-container').classList.toggle('hidden', !show);
+    document.querySelectorAll('.runner-ui').forEach(el => {
+        el.classList.toggle('hidden', !show);
+    });
+}
+
+function setupXO() {
+    document.getElementById('xo-home-btn').addEventListener('click', showHome);
+    document.getElementById('xo-restart-btn').addEventListener('click', resetXO);
+
+    document.querySelectorAll('.xo-cell').forEach(cell => {
+        cell.addEventListener('click', () => {
+            const idx = Number(cell.dataset.index);
+            handleXOCellClick(idx);
+        });
+    });
+
+    resetXO();
+}
+
+function showXO() {
+    gameRunning = false;
+    stopBunnyGame();
+    hideScreens();
+    setRunnerVisible(false);
+    document.getElementById('home-screen').classList.add('hidden');
+    document.getElementById('memory-screen').classList.remove('active');
+    document.getElementById('bunny-screen').classList.remove('active');
+    document.getElementById('rps-screen').classList.remove('active');
+    document.getElementById('xo-screen').classList.add('active');
+    resetXO();
+}
+
+function setupMemoryGame() {
+    document.getElementById('memory-home-btn').addEventListener('click', showHome);
+    document.getElementById('memory-restart-btn').addEventListener('click', resetMemoryGame);
+    document.getElementById('memory-board').addEventListener('click', onMemoryBoardClick);
+    document.querySelectorAll('.memory-level').forEach(btn => {
+        btn.addEventListener('click', () => {
+            setMemoryLevel(btn.dataset.level);
+        });
+    });
+    resetMemoryGame();
+}
+
+function showMemoryGame() {
+    gameRunning = false;
+    stopBunnyGame();
+    hideScreens();
+    setRunnerVisible(false);
+    document.getElementById('home-screen').classList.add('hidden');
+    document.getElementById('xo-screen').classList.remove('active');
+    document.getElementById('bunny-screen').classList.remove('active');
+    document.getElementById('rps-screen').classList.remove('active');
+    document.getElementById('memory-screen').classList.add('active');
+    resetMemoryGame();
+}
+
+function setupBunnyGame() {
+    document.getElementById('bunny-home-btn').addEventListener('click', showHome);
+    document.getElementById('bunny-start-btn').addEventListener('click', startBunnyGame);
+    document.getElementById('bunny-restart-btn').addEventListener('click', startBunnyGame);
+    document.getElementById('bunny-grid').addEventListener('click', onBunnyGridClick);
+    updateBunnyHud();
+}
+
+function showBunnyGame() {
+    gameRunning = false;
+    hideScreens();
+    setRunnerVisible(false);
+    document.getElementById('home-screen').classList.add('hidden');
+    document.getElementById('xo-screen').classList.remove('active');
+    document.getElementById('memory-screen').classList.remove('active');
+    document.getElementById('rps-screen').classList.remove('active');
+    document.getElementById('bunny-screen').classList.add('active');
+    stopBunnyGame();
+    resetBunnyBoard();
+    updateBunnyHud();
+}
+
+function setupRPSGame() {
+    document.getElementById('rps-home-btn').addEventListener('click', showHome);
+    document.getElementById('rps-reset-btn').addEventListener('click', resetRPSGame);
+    document.querySelectorAll('.rps-choice').forEach(btn => {
+        btn.addEventListener('click', () => playRPSRound(btn.dataset.choice));
+    });
+    updateRPSHud();
+}
+
+function showRPSGame() {
+    gameRunning = false;
+    stopBunnyGame();
+    hideScreens();
+    setRunnerVisible(false);
+    document.getElementById('home-screen').classList.add('hidden');
+    document.getElementById('xo-screen').classList.remove('active');
+    document.getElementById('memory-screen').classList.remove('active');
+    document.getElementById('bunny-screen').classList.remove('active');
+    document.getElementById('rps-screen').classList.add('active');
+    resetRPSHands();
+    updateRPSHud();
+}
+
+function resetRPSHands() {
+    document.getElementById('rps-player-emoji').textContent = '❔';
+    document.getElementById('rps-computer-emoji').textContent = '❔';
+    document.getElementById('rps-player-label').textContent = 'Pick a move';
+    document.getElementById('rps-computer-label').textContent = 'Waiting...';
+    document.getElementById('rps-status').textContent = 'Choose Rock, Paper, or Scissors.';
+}
+
+function updateRPSHud() {
+    document.getElementById('rps-player-score').textContent = 'You: ' + rpsPlayerScore;
+    document.getElementById('rps-draw-score').textContent = 'Draw: ' + rpsDrawScore;
+    document.getElementById('rps-computer-score').textContent = 'CPU: ' + rpsComputerScore;
+}
+
+function resetRPSGame() {
+    rpsPlayerScore = 0;
+    rpsComputerScore = 0;
+    rpsDrawScore = 0;
+    resetRPSHands();
+    updateRPSHud();
+}
+
+function playRPSRound(playerChoice) {
+    const options = ['rock', 'paper', 'scissors'];
+    const computerChoice = options[Math.floor(Math.random() * options.length)];
+
+    document.getElementById('rps-player-emoji').textContent = RPS_EMOJI[playerChoice];
+    document.getElementById('rps-computer-emoji').textContent = RPS_EMOJI[computerChoice];
+    document.getElementById('rps-player-label').textContent = playerChoice.charAt(0).toUpperCase() + playerChoice.slice(1);
+    document.getElementById('rps-computer-label').textContent = computerChoice.charAt(0).toUpperCase() + computerChoice.slice(1);
+
+    let resultText;
+    if (playerChoice === computerChoice) {
+        rpsDrawScore += 1;
+        resultText = 'Draw round!';
+    } else if (
+        (playerChoice === 'rock' && computerChoice === 'scissors') ||
+        (playerChoice === 'paper' && computerChoice === 'rock') ||
+        (playerChoice === 'scissors' && computerChoice === 'paper')
+    ) {
+        rpsPlayerScore += 1;
+        resultText = 'You win this round!';
+    } else {
+        rpsComputerScore += 1;
+        resultText = 'Computer wins this round!';
+    }
+
+    document.getElementById('rps-status').textContent = resultText;
+    updateRPSHud();
+}
+
+function updateBunnyHud() {
+    document.getElementById('bunny-score').textContent = 'Score: ' + bunnyScore;
+    document.getElementById('bunny-time').textContent = 'Time: ' + bunnyTime;
+    document.getElementById('bunny-best').textContent = 'Best: ' + bunnyBest;
+}
+
+function resetBunnyBoard() {
+    bunnyActiveIndex = -1;
+    document.querySelectorAll('.bunny-hole').forEach(hole => {
+        hole.classList.remove('active', 'hit');
+    });
+}
+
+function startBunnyGame() {
+    stopBunnyGame();
+    bunnyScore = 0;
+    bunnyTime = 20;
+    bunnyGameRunning = true;
+    updateBunnyHud();
+    moveBunny();
+
+    bunnyTickInterval = setInterval(() => {
+        bunnyTime -= 1;
+        if (bunnyTime <= 0) {
+            bunnyTime = 0;
+            if (bunnyScore > bunnyBest) bunnyBest = bunnyScore;
+            stopBunnyGame();
+        }
+        updateBunnyHud();
+    }, 1000);
+}
+
+function stopBunnyGame() {
+    bunnyGameRunning = false;
+    if (bunnyMoveTimeout) {
+        clearTimeout(bunnyMoveTimeout);
+        bunnyMoveTimeout = null;
+    }
+    if (bunnyTickInterval) {
+        clearInterval(bunnyTickInterval);
+        bunnyTickInterval = null;
+    }
+    resetBunnyBoard();
+    updateBunnyHud();
+}
+
+function moveBunny() {
+    if (!bunnyGameRunning) return;
+    const holes = Array.from(document.querySelectorAll('.bunny-hole'));
+    holes.forEach(hole => hole.classList.remove('active', 'hit'));
+
+    let nextIndex = Math.floor(Math.random() * holes.length);
+    if (holes.length > 1 && nextIndex === bunnyActiveIndex) {
+        nextIndex = (nextIndex + 1) % holes.length;
+    }
+    bunnyActiveIndex = nextIndex;
+    holes[bunnyActiveIndex].classList.add('active');
+
+    bunnyMoveTimeout = setTimeout(moveBunny, 520 + Math.random() * 280);
+}
+
+function onBunnyGridClick(event) {
+    const hole = event.target.closest('.bunny-hole');
+    if (!hole || !bunnyGameRunning) return;
+    const index = Number(hole.dataset.index);
+    if (index !== bunnyActiveIndex) return;
+
+    bunnyScore += 1;
+    if (bunnyScore > bunnyBest) bunnyBest = bunnyScore;
+    hole.classList.add('hit');
+    hole.classList.remove('active');
+    bunnyActiveIndex = -1;
+    updateBunnyHud();
+
+    if (bunnyMoveTimeout) {
+        clearTimeout(bunnyMoveTimeout);
+        bunnyMoveTimeout = null;
+    }
+    bunnyMoveTimeout = setTimeout(moveBunny, 180);
+}
+
+function shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const temp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = temp;
+    }
+    return arr;
+}
+
+function setMemoryLevel(level) {
+    memoryLevel = level;
+    document.querySelectorAll('.memory-level').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.level === level);
+    });
+    resetMemoryGame();
+}
+
+function resetMemoryGame() {
+    const pairCount = MEMORY_LEVELS[memoryLevel];
+    const basePool = MEMORY_BASE.concat(['🐻', '🐯']).slice(0, pairCount);
+    const pool = basePool.concat(basePool).map((symbol, idx) => ({
+        id: idx,
+        symbol,
+        matched: false
+    }));
+    memoryDeck = shuffleArray(pool);
+    memoryOpen = [];
+    memoryMoves = 0;
+    memoryPairsFound = 0;
+    memoryLock = false;
+    renderMemoryBoard();
+    updateMemoryHud('Find a pair!');
+}
+
+function updateMemoryHud(statusText) {
+    document.getElementById('memory-moves').textContent = 'Moves: ' + memoryMoves;
+    document.getElementById('memory-found').textContent = 'Pairs: ' + memoryPairsFound + '/' + MEMORY_LEVELS[memoryLevel];
+    document.getElementById('memory-status').textContent = statusText;
+}
+
+function renderMemoryBoard() {
+    const board = document.getElementById('memory-board');
+    board.className = 'memory-board ' + memoryLevel;
+    board.innerHTML = memoryDeck.map((card, idx) => {
+        const isOpen = memoryOpen.includes(idx);
+        const stateClass = card.matched ? 'matched' : isOpen ? 'open' : '';
+        const front = '<span class="memory-front"><span class="memory-front-icon">🎴<small>TAP</small></span></span>';
+        const back = '<span class="memory-back"><span class="memory-back-icon">' + card.symbol + '</span></span>';
+        return '<button class="memory-item ' + stateClass + '" data-index="' + idx + '" aria-label="Memory card">'
+            + '<span class="memory-face">' + front + back + '</span>'
+            + '</button>';
+    }).join('');
+}
+
+function onMemoryBoardClick(event) {
+    const btn = event.target.closest('.memory-item');
+    if (!btn) return;
+    const index = Number(btn.dataset.index);
+    handleMemoryCard(index);
+}
+
+function handleMemoryCard(index) {
+    if (memoryLock) return;
+    const card = memoryDeck[index];
+    if (!card || card.matched || memoryOpen.includes(index)) return;
+
+    memoryOpen.push(index);
+    renderMemoryBoard();
+
+    if (memoryOpen.length < 2) {
+        updateMemoryHud('Pick one more card...');
+        return;
+    }
+
+    memoryMoves += 1;
+    const first = memoryDeck[memoryOpen[0]];
+    const second = memoryDeck[memoryOpen[1]];
+
+    if (first.symbol === second.symbol) {
+        first.matched = true;
+        second.matched = true;
+        memoryPairsFound += 1;
+        memoryOpen = [];
+        renderMemoryBoard();
+
+        if (memoryPairsFound === MEMORY_LEVELS[memoryLevel]) {
+            updateMemoryHud('You matched all cards! Great job!');
+        } else {
+            updateMemoryHud('Nice match! Keep going.');
+        }
+        return;
+    }
+
+    memoryLock = true;
+    updateMemoryHud('Not a match, try again.');
+    setTimeout(() => {
+        memoryOpen = [];
+        memoryLock = false;
+        renderMemoryBoard();
+    }, 700);
+}
+
+function resetXO() {
+    xoBoard = Array(9).fill('');
+    xoOver = false;
+    xoTurn = 'X';
+    renderXO();
+    setXOStatus('Player X turn');
+}
+
+function setXOStatus(text) {
+    document.getElementById('xo-status').textContent = text;
+}
+
+function renderXO() {
+    document.querySelectorAll('.xo-cell').forEach(cell => {
+        const idx = Number(cell.dataset.index);
+        const mark = xoBoard[idx];
+        cell.textContent = mark;
+        cell.classList.remove('mark-x', 'mark-o', 'win', 'pop');
+        if (mark === 'X') cell.classList.add('mark-x');
+        if (mark === 'O') cell.classList.add('mark-o');
+    });
+}
+
+function updateXOScore() {
+    document.getElementById('score-x').textContent = 'X: ' + xoScoreX;
+    document.getElementById('score-o').textContent = 'O: ' + xoScoreO;
+    document.getElementById('score-draw').textContent = 'Draw: ' + xoScoreDraw;
+}
+
+function findXOWinLine(mark) {
+    return WIN_LINES.find(line => line.every(i => xoBoard[i] === mark));
+}
+
+function animateXOCell(index) {
+    const cell = document.querySelector('.xo-cell[data-index="' + index + '"]');
+    if (!cell) return;
+    cell.classList.remove('pop');
+    void cell.offsetWidth;
+    cell.classList.add('pop');
+}
+
+function showWinningLine(line) {
+    line.forEach(i => {
+        const cell = document.querySelector('.xo-cell[data-index="' + i + '"]');
+        if (cell) cell.classList.add('win');
+    });
+}
+
+function handleXOCellClick(index) {
+    if (xoOver || xoBoard[index]) return;
+
+    xoBoard[index] = xoTurn;
+    renderXO();
+    animateXOCell(index);
+
+    const winLine = findXOWinLine(xoTurn);
+    if (winLine) {
+        xoOver = true;
+        showWinningLine(winLine);
+        if (xoTurn === 'X') xoScoreX += 1;
+        else xoScoreO += 1;
+        updateXOScore();
+        setXOStatus('Player ' + xoTurn + ' wins!');
+        return;
+    }
+
+    if (xoBoard.every(Boolean)) {
+        xoOver = true;
+        xoScoreDraw += 1;
+        updateXOScore();
+        setXOStatus('Draw game!');
+        return;
+    }
+
+    xoTurn = xoTurn === 'X' ? 'O' : 'X';
+    setXOStatus('Player ' + xoTurn + ' turn');
+}
+
+function checkXOWin(mark) {
+    return WIN_LINES.some(line => line.every(i => xoBoard[i] === mark));
+}
+
+function initRenderer() {
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 800);
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    window.addEventListener('resize', () => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+    });
+}
+
+function buildScene() {
+    scene.background = new THREE.Color(0x1e3050);
+    scene.fog = new THREE.Fog(0x1e3050, 50, 200);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+
+    const sun = new THREE.DirectionalLight(0xfffbe0, 1.5);
+    sun.position.set(30, 60, 30);
+    scene.add(sun);
+
+    const fill = new THREE.DirectionalLight(0x88aaff, 0.8);
+    fill.position.set(-30, 30, -20);
+    scene.add(fill);
+
+    const road = new THREE.Mesh(
+        new THREE.PlaneGeometry(13, 600),
+        new THREE.MeshLambertMaterial({ color: 0x2c2c2c })
+    );
+    road.rotation.x = -Math.PI / 2;
+    road.position.z = -290;
+    scene.add(road);
+
+    [-6, 6].forEach(x => {
+        const e = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.25, 600),
+            new THREE.MeshBasicMaterial({ color: 0xffffff })
+        );
+        e.rotation.x = -Math.PI / 2;
+        e.position.set(x, 0.01, -290);
+        scene.add(e);
+    });
+
+    for (let z = 10; z > -580; z -= 14) {
+        [-2.1, 2.1].forEach(x => {
+            const d = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.18, 6),
+                new THREE.MeshBasicMaterial({ color: 0xdddddd })
+            );
+            d.rotation.x = -Math.PI / 2;
+            d.position.set(x, 0.01, z);
+            scene.add(d);
+        });
+    }
+
+    [-19, 19].forEach(x => {
+        const g = new THREE.Mesh(
+            new THREE.PlaneGeometry(26, 600),
+            new THREE.MeshLambertMaterial({ color: 0x3a7030 })
+        );
+        g.rotation.x = -Math.PI / 2;
+        g.position.set(x, -0.01, -290);
+        scene.add(g);
+    });
+
+    const gnd = new THREE.Mesh(
+        new THREE.PlaneGeometry(200, 600),
+        new THREE.MeshLambertMaterial({ color: 0x336622 })
+    );
+    gnd.rotation.x = -Math.PI / 2;
+    gnd.position.set(0, -0.05, -290);
+    scene.add(gnd);
+
+    const sky = new THREE.Mesh(
+        new THREE.SphereGeometry(380, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0x1e3050, side: THREE.BackSide })
+    );
+    scene.add(sky);
+
+    for (let i = 0; i < 8; i++) {
+        const h = new THREE.Mesh(
+            new THREE.SphereGeometry(25 + Math.random() * 20, 8, 6),
+            new THREE.MeshLambertMaterial({ color: 0x2a5522 })
+        );
+        h.position.set(-100 + i * 28, -18, -130 - Math.random() * 50);
+        scene.add(h);
+    }
+
+    for (let i = 0; i < 20; i++) {
+        const side = i % 2 === 0 ? -1 : 1;
+        const z = -10 - i * 14;
+
+        const trunk = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.4, 0.5, 3, 7),
+            new THREE.MeshLambertMaterial({ color: 0x5c3a1e })
+        );
+        trunk.position.set(side * (9 + Math.random() * 4), 1.5, z);
+        scene.add(trunk);
+
+        const foliage = new THREE.Mesh(
+            new THREE.ConeGeometry(2.5, 5, 8),
+            new THREE.MeshLambertMaterial({ color: 0x228833 })
+        );
+        foliage.position.set(trunk.position.x, 6, z);
+        scene.add(foliage);
+    }
+
+    camera.position.set(0, 6, 16);
+    camera.lookAt(0, 1, -8);
+}
+
+function buildCat() {
+    if (!scene) return;
+    if (cat) scene.remove(cat);
+
+    cat = new THREE.Group();
+    scene.add(cat);
+    cat.position.set(0, 1.1, 0);
+
+    if (playerCharacter === 'dog') {
+        buildDog(cat);
+    } else if (playerCharacter === 'bunny') {
+        buildBunny(cat);
+    } else if (playerCharacter === 'fox') {
+        buildFox(cat);
+    } else {
+        buildCatModel(cat);
+    }
+}
+
+function buildCatModel(target) {
+    const matOrange = new THREE.MeshLambertMaterial({ color: 0xe67e22 });
+    const matDark = new THREE.MeshLambertMaterial({ color: 0xc0392b });
+    const matGreen = new THREE.MeshLambertMaterial({ color: 0x22cc44 });
+    const matBlack = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const matPink = new THREE.MeshLambertMaterial({ color: 0xff69b4 });
+    const matCream = new THREE.MeshLambertMaterial({ color: 0xfde8c8 });
+
+    target.add(mesh(new THREE.BoxGeometry(0.88, 0.72, 1.05), matOrange, 0, 0, 0));
+    target.add(mesh(new THREE.SphereGeometry(0.46, 16, 16), matOrange, 0, 0.6, 0.38));
+    target.add(mesh(new THREE.SphereGeometry(0.21, 12, 12), matCream, 0, 0.5, 0.76));
+
+    [[-0.3, 1.05, 0.28, -0.28], [0.3, 1.05, 0.28, 0.28]].forEach(([x, y, z, rz]) => {
+        const e = mesh(new THREE.ConeGeometry(0.14, 0.36, 7), matOrange, x, y, z);
+        e.rotation.z = rz;
+        target.add(e);
+
+        const ei = mesh(new THREE.ConeGeometry(0.07, 0.2, 7), matPink, x, y - 0.03, z + 0.06);
+        ei.rotation.z = rz;
+        target.add(ei);
+    });
+
+    [[-0.18, 0.68, 0.76], [0.18, 0.68, 0.76]].forEach(([x, y, z]) => {
+        target.add(mesh(new THREE.SphereGeometry(0.10, 10, 10), matGreen, x, y, z));
+        target.add(mesh(new THREE.SphereGeometry(0.055, 8, 8), matBlack, x, y, z + 0.07));
+    });
+
+    target.add(mesh(new THREE.SphereGeometry(0.065, 8, 8), matPink, 0, 0.54, 0.83));
+
+    [[-0.32, -0.42, 0.32], [0.32, -0.42, 0.32], [-0.32, -0.42, -0.32], [0.32, -0.42, -0.32]].forEach(([x, y, z]) => {
+        target.add(mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.38, 7), matOrange, x, y, z));
+        target.add(mesh(new THREE.SphereGeometry(0.13, 8, 8), matOrange, x, y - 0.28, z));
+        target.add(mesh(new THREE.SphereGeometry(0.065, 7, 7), matPink, x, y - 0.35, z + 0.09));
+    });
+
+    const tail = mesh(new THREE.ConeGeometry(0.13, 0.95, 8), matDark, 0, 0.42, -0.68);
+    tail.rotation.x = -0.55;
+    target.add(tail);
+    target.tailMesh = tail;
+}
+
+function buildDog(target) {
+    const fur = new THREE.MeshLambertMaterial({ color: 0xc58f55 });
+    const dark = new THREE.MeshLambertMaterial({ color: 0x4d3018 });
+    const light = new THREE.MeshLambertMaterial({ color: 0xe6c9a8 });
+    const black = new THREE.MeshLambertMaterial({ color: 0x111111 });
+
+    target.add(mesh(new THREE.BoxGeometry(0.94, 0.75, 1.1), fur, 0, 0, 0));
+    target.add(mesh(new THREE.BoxGeometry(0.72, 0.62, 0.72), fur, 0, 0.56, 0.42));
+    target.add(mesh(new THREE.BoxGeometry(0.34, 0.28, 0.4), light, 0, 0.45, 0.86));
+
+    [[-0.26, 0.88, 0.36], [0.26, 0.88, 0.36]].forEach(([x, y, z]) => {
+        const ear = mesh(new THREE.BoxGeometry(0.2, 0.36, 0.08), dark, x, y, z);
+        ear.rotation.z = x < 0 ? 0.25 : -0.25;
+        target.add(ear);
+    });
+
+    [[-0.15, 0.64, 0.82], [0.15, 0.64, 0.82]].forEach(([x, y, z]) => {
+        target.add(mesh(new THREE.SphereGeometry(0.06, 8, 8), black, x, y, z));
+    });
+
+    target.add(mesh(new THREE.SphereGeometry(0.07, 8, 8), black, 0, 0.5, 1.02));
+
+    [[-0.3, -0.42, 0.32], [0.3, -0.42, 0.32], [-0.3, -0.42, -0.32], [0.3, -0.42, -0.32]].forEach(([x, y, z]) => {
+        target.add(mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.42, 8), fur, x, y, z));
+    });
+
+    const tail = mesh(new THREE.CylinderGeometry(0.07, 0.12, 0.8, 8), fur, 0, 0.4, -0.72);
+    tail.rotation.x = -0.95;
+    target.add(tail);
+    target.tailMesh = tail;
+}
+
+function buildBunny(target) {
+    const white = new THREE.MeshLambertMaterial({ color: 0xf3f3f3 });
+    const pink = new THREE.MeshLambertMaterial({ color: 0xff85b3 });
+    const black = new THREE.MeshLambertMaterial({ color: 0x101010 });
+
+    target.add(mesh(new THREE.BoxGeometry(0.86, 0.72, 1.0), white, 0, 0, 0));
+    target.add(mesh(new THREE.SphereGeometry(0.44, 16, 16), white, 0, 0.62, 0.36));
+
+    [[-0.15, 1.3, 0.34], [0.15, 1.3, 0.34]].forEach(([x, y, z]) => {
+        const ear = mesh(new THREE.BoxGeometry(0.14, 0.72, 0.16), white, x, y, z);
+        target.add(ear);
+        const inner = mesh(new THREE.BoxGeometry(0.07, 0.58, 0.08), pink, x, y, z + 0.01);
+        target.add(inner);
+    });
+
+    [[-0.14, 0.68, 0.72], [0.14, 0.68, 0.72]].forEach(([x, y, z]) => {
+        target.add(mesh(new THREE.SphereGeometry(0.055, 8, 8), black, x, y, z));
+    });
+
+    target.add(mesh(new THREE.SphereGeometry(0.06, 8, 8), pink, 0, 0.52, 0.83));
+
+    [[-0.28, -0.42, 0.3], [0.28, -0.42, 0.3], [-0.28, -0.42, -0.3], [0.28, -0.42, -0.3]].forEach(([x, y, z]) => {
+        target.add(mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.4, 8), white, x, y, z));
+    });
+
+    const tail = mesh(new THREE.SphereGeometry(0.17, 10, 10), white, 0, 0.3, -0.64);
+    target.add(tail);
+    target.tailMesh = tail;
+}
+
+function buildFox(target) {
+    const orange = new THREE.MeshLambertMaterial({ color: 0xdb6f1d });
+    const cream = new THREE.MeshLambertMaterial({ color: 0xf7e5c7 });
+    const dark = new THREE.MeshLambertMaterial({ color: 0x22140c });
+
+    target.add(mesh(new THREE.BoxGeometry(0.9, 0.72, 1.06), orange, 0, 0, 0));
+    target.add(mesh(new THREE.BoxGeometry(0.66, 0.54, 0.78), orange, 0, 0.6, 0.42));
+    target.add(mesh(new THREE.BoxGeometry(0.26, 0.22, 0.42), cream, 0, 0.5, 0.86));
+
+    [[-0.24, 1.02, 0.35, -0.2], [0.24, 1.02, 0.35, 0.2]].forEach(([x, y, z, rz]) => {
+        const ear = mesh(new THREE.ConeGeometry(0.13, 0.4, 8), orange, x, y, z);
+        ear.rotation.z = rz;
+        target.add(ear);
+    });
+
+    [[-0.15, 0.66, 0.78], [0.15, 0.66, 0.78]].forEach(([x, y, z]) => {
+        target.add(mesh(new THREE.SphereGeometry(0.05, 8, 8), dark, x, y, z));
+    });
+
+    target.add(mesh(new THREE.SphereGeometry(0.05, 8, 8), dark, 0, 0.5, 1.0));
+
+    [[-0.29, -0.42, 0.3], [0.29, -0.42, 0.3], [-0.29, -0.42, -0.3], [0.29, -0.42, -0.3]].forEach(([x, y, z]) => {
+        target.add(mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.4, 8), orange, x, y, z));
+    });
+
+    const tail = mesh(new THREE.CylinderGeometry(0.12, 0.2, 1.05, 8), orange, 0, 0.45, -0.76);
+    tail.rotation.x = -0.95;
+    target.add(tail);
+    target.tailMesh = tail;
+}
+
+function mesh(geo, mat, x, y, z) {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    return m;
+}
+
+function setupInput() {
+    window.addEventListener('keydown', e => {
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
+        keys[e.code] = true;
+    });
+
+    window.addEventListener('keyup', e => {
+        keys[e.code] = false;
+    });
+
+    window.addEventListener('blur', () => {
+        keys = {};
+    });
+}
+
+function makeCandy() {
+    const col = CANDY_COLS[Math.floor(Math.random() * CANDY_COLS.length)];
+    const mat = new THREE.MeshLambertMaterial({ color: col });
+    const matW = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    const matS = new THREE.MeshLambertMaterial({ color: 0xff0044 });
+    const type = Math.floor(Math.random() * 4);
+    const g = new THREE.Group();
+
+    if (type === 0) {
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.72, 14, 14), mat);
+        head.position.y = 1.1;
+        g.add(head);
+
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.09, 8, 18), matW);
+        ring.position.y = 1.1;
+        g.add(ring);
+
+        const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.3, 7), matW);
+        stick.position.y = 0.35;
+        g.add(stick);
+    } else if (type === 1) {
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 1.3, 12), mat);
+        g.add(body);
+
+        [-0.72, 0.72].forEach(y => {
+            const end = new THREE.Mesh(new THREE.SphereGeometry(0.38, 8, 8), matW);
+            end.scale.set(1.1, 0.6, 1.1);
+            end.position.y = y;
+            g.add(end);
+        });
+
+        const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.1, 6, 18), matS);
+        stripe.rotation.x = Math.PI / 2;
+        g.add(stripe);
+    } else if (type === 2) {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.55, 0.85), mat);
+        g.add(bar);
+
+        for (let r = -1; r <= 1; r++) {
+            for (let c = 0; c <= 1; c++) {
+                const sq = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.09, 0.32), matW);
+                sq.position.set(r * 0.4, 0.32, c * 0.36 - 0.18);
+                g.add(sq);
+            }
+        }
+    } else {
+        const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 1.4, 8), mat);
+        g.add(stick);
+
+        const hook = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.16, 8, 16, Math.PI), mat);
+        hook.position.set(0.38, 0.7, 0);
+        hook.rotation.z = Math.PI / 2;
+        g.add(hook);
+
+        [-0.45, 0.0, 0.45].forEach(y => {
+            const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.18, 8), matW);
+            stripe.position.y = y;
+            g.add(stripe);
+        });
+    }
+
+    return g;
+}
+
+function makeBarrier() {
+    const g = new THREE.Group();
+    const matRed = new THREE.MeshLambertMaterial({ color: 0xcc1111 });
+    const matBase = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+
+    const cfgs = [
+        { x1: -5.2, x2: 5.2 },
+        { x1: -5.2, x2: 0.4 },
+        { x1: -0.4, x2: 5.2 }
+    ];
+
+    const cfg = cfgs[Math.floor(Math.random() * cfgs.length)];
+    const x1 = cfg.x1;
+    const x2 = cfg.x2;
+
+    [x1, x2].forEach(x => {
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.68, 0.22, 10), matBase);
+        base.position.set(x, 0.11, 0);
+        g.add(base);
+
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 2.5, 10), matRed);
+        pole.position.set(x, 1.36, 0);
+        g.add(pole);
+
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), matRed);
+        cap.position.set(x, 2.63, 0);
+        g.add(cap);
+    });
+
+    const beltLen = x2 - x1;
+    const nStripes = Math.max(5, Math.ceil(beltLen * 1.3));
+    for (let i = 0; i < nStripes; i++) {
+        const s = new THREE.Mesh(
+            new THREE.BoxGeometry(beltLen / nStripes + 0.02, 0.28, 0.11),
+            new THREE.MeshLambertMaterial({ color: i % 2 === 0 ? 0xdd1111 : 0xfafafa })
+        );
+        s.position.set(x1 + beltLen / nStripes * (i + 0.5), 1.35, 0);
+        s.rotation.y = 0.08;
+        g.add(s);
+    }
+
+    g.userData.barrierX1 = x1;
+    g.userData.barrierX2 = x2;
+    g.userData.pattern = 'barrier';
+    return g;
+}
+
+function makeWoodenFence(laneX) {
+    const g = new THREE.Group();
+    const matWood = new THREE.MeshLambertMaterial({ color: 0x8b5e3c });
+    const matDark = new THREE.MeshLambertMaterial({ color: 0x4a2e10 });
+    const w = 3.0;
+
+    for (let i = 0; i < 5; i++) {
+        const x = -w / 2 + (w / 4) * i;
+
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 2.3, 8), matWood);
+        post.position.set(x, 1.15, 0);
+        g.add(post);
+
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(0.16, 7, 6), matDark);
+        cap.position.set(x, 2.32, 0);
+        g.add(cap);
+    }
+
+    [0.55, 1.1, 1.75].forEach(y => {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(w + 0.1, 0.15, 0.14), matDark);
+        rail.position.set(0, y, 0);
+        g.add(rail);
+    });
+
+    g.userData.pattern = 'fence';
+    g.userData.laneX = laneX;
+    g.userData.halfW = w * 0.5 + 0.2;
+    g.userData.fenceTop = 2.0;
+    return g;
+}
+
+function spawnObstacle() {
+    const info = LEVELS[level];
+    const roll = Math.random();
+    let pattern;
+
+    if (info.pattern === 'both') {
+        pattern = roll < 0.5 ? 'forward' : 'falling';
+    } else if (info.pattern === 'mixed') {
+        pattern = roll < 0.45 ? 'barrier' : 'forward';
+    } else if (info.pattern === 'jump') {
+        pattern = roll < 0.30 ? 'fence' : roll < 0.60 ? 'barrier' : 'forward';
+    } else {
+        pattern = info.pattern;
+    }
+
+    if (pattern === 'barrier') {
+        const b = makeBarrier();
+        b.position.set(0, 0, -(60 + Math.random() * 20));
+        b.userData.spd = 0.05 + Math.random() * 0.06;
+        scene.add(b);
+        obstacles.push(b);
+        return;
+    }
+
+    if (pattern === 'fence') {
+        const lane = (Math.floor(Math.random() * 3) - 1) * 3.2;
+        const f = makeWoodenFence(lane);
+        f.position.set(lane, 0, -(60 + Math.random() * 20));
+        f.userData.spd = 0.06 + Math.random() * 0.07;
+        scene.add(f);
+        obstacles.push(f);
+        return;
+    }
+
+    const candy = makeCandy();
+    if (pattern === 'falling') {
+        const lane = (Math.floor(Math.random() * 3) - 1) * 3.2;
+        candy.position.set(lane + (Math.random() - 0.5) * 0.6, 8.0, (Math.random() - 0.5) * 6);
+    } else {
+        const lane = (Math.floor(Math.random() * 3) - 1) * 3.2;
+        candy.position.set(lane + (Math.random() - 0.5) * 0.8, 1.0, -(55 + Math.random() * 20));
+    }
+
+    candy.userData = { pattern, spd: 0.07 + Math.random() * 0.10 };
+    scene.add(candy);
+    obstacles.push(candy);
+}
+
+function startLevel(idx) {
+    level = idx;
+    levelTime = 0;
+    spawnTimer = 0;
+    catVelY = 0;
+    gameRunning = true;
+
+    obstacles.forEach(o => scene.remove(o));
+    obstacles = [];
+    keys = {};
+
+    const info = LEVELS[level];
+    const theme = LEVEL_THEMES[level];
+
+    scene.background.set(theme.sky);
+    scene.fog.color.set(theme.fog);
+
+    document.getElementById('lvl-num').textContent = level + 1;
+    document.getElementById('lvl-name').textContent = info.name;
+    document.getElementById('hint').textContent = HINTS[level];
+    document.getElementById('timer').textContent = info.duration;
+
+    if (idx > 0) {
+        const flashEl = document.getElementById('flash');
+        flashEl.style.background = theme.flash;
+        flashEl.classList.add('show');
+        setTimeout(() => flashEl.classList.remove('show'), 200);
+
+        document.body.classList.remove('shake');
+        void document.body.offsetWidth;
+        document.body.classList.add('shake');
+        setTimeout(() => document.body.classList.remove('shake'), 650);
+    }
+
+    const introEl = document.getElementById('level-intro');
+    const introNum = document.getElementById('intro-num');
+    const introName = document.getElementById('intro-name');
+
+    introNum.textContent = 'LEVEL ' + (level + 1);
+    introNum.style.color = theme.numCol;
+    introNum.style.textShadow = '0 0 50px ' + theme.numCol + ', 0 0 20px ' + theme.numCol;
+    introName.textContent = info.name;
+    introName.style.color = theme.nameCol;
+    introName.style.textShadow = '0 0 18px ' + theme.nameCol;
+
+    introEl.classList.remove('show');
+    void introEl.offsetWidth;
+    introEl.classList.add('show');
+    setTimeout(() => introEl.classList.remove('show'), 2000);
+
+    hideScreens();
+}
+
+function hideScreens() {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+}
+
+function onLevelComplete() {
+    gameRunning = false;
+    obstacles.forEach(o => scene.remove(o));
+    obstacles = [];
+    keys = {};
+
+    if (level + 1 >= LEVELS.length) {
+        document.getElementById('win-score').textContent = Math.floor(score);
+        document.getElementById('screen-win').classList.add('active');
+        return;
+    }
+
+    document.getElementById('lw-title').textContent = 'LEVEL ' + (level + 1) + ' DONE!';
+    document.getElementById('lw-sub').textContent = 'Get ready for Level ' + (level + 2) + '...';
+    document.getElementById('screen-levelwin').classList.add('active');
+
+    setTimeout(() => {
+        hideScreens();
+        startLevel(level + 1);
+    }, 2500);
+}
+
+function onGameOver() {
+    if (!gameRunning) return;
+
+    gameRunning = false;
+    keys = {};
+    spawnParticles(cat.position.clone());
+    document.getElementById('go-score').textContent = Math.floor(score);
+
+    setTimeout(() => {
+        document.getElementById('screen-gameover').classList.add('active');
+    }, 700);
+}
+
+function restartGame() {
+    score = 0;
+    obstacles.forEach(o => scene.remove(o));
+    particles.forEach(p => scene.remove(p));
+    obstacles = [];
+    particles = [];
+
+    cat.position.set(0, 1.1, 0);
+    cat.rotation.set(0, 0, 0);
+    cat.scale.set(1, 1, 1);
+    catVelY = 0;
+
+    document.getElementById('score').textContent = '0';
+    hideScreens();
+    startLevel(0);
+}
+
+function spawnParticles(pos) {
+    for (let i = 0; i < 20; i++) {
+        const p = new THREE.Mesh(
+            new THREE.SphereGeometry(0.14, 4, 4),
+            new THREE.MeshBasicMaterial({
+                color: new THREE.Color().setHSL(0.08 + Math.random() * 0.1, 1, 0.6),
+                transparent: true
+            })
+        );
+        p.position.copy(pos);
+        p.vel = new THREE.Vector3((Math.random() - 0.5) * 6, Math.random() * 5 + 1, (Math.random() - 0.5) * 2);
+        p.life = 1.0;
+        scene.add(p);
+        particles.push(p);
+    }
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    const dt = Math.min(clock.getDelta(), 0.05);
+
+    if (gameRunning) {
+        const info = LEVELS[level];
+        levelTime += dt;
+
+        const remaining = Math.max(0, Math.ceil(info.duration - levelTime));
+        document.getElementById('timer').textContent = remaining;
+
+        score += info.baseSpeed * 12 * dt * 60;
+        document.getElementById('score').textContent = Math.floor(score);
+
+        if (levelTime >= info.duration) {
+            onLevelComplete();
+        } else {
+            const progress = levelTime / info.duration;
+
+            const moveSpd = 11;
+            if (keys['ArrowLeft'] || keys['KeyA']) cat.position.x -= moveSpd * dt;
+            if (keys['ArrowRight'] || keys['KeyD']) cat.position.x += moveSpd * dt;
+            cat.position.x = THREE.MathUtils.clamp(cat.position.x, -5.2, 5.2);
+
+            if (info.jump) {
+                const onGround = cat.position.y <= 1.12;
+                const ducking = info.duck && onGround && (keys['ArrowDown'] || keys['KeyS']);
+
+                if (ducking) {
+                    catVelY = 0;
+                    cat.position.y = THREE.MathUtils.lerp(cat.position.y, 0.18, dt * 16);
+                    cat.scale.y = THREE.MathUtils.lerp(cat.scale.y, 0.45, dt * 14);
+                    cat.rotation.x = THREE.MathUtils.lerp(cat.rotation.x, 0.5, dt * 8);
+                } else {
+                    if ((keys['ArrowUp'] || keys['Space']) && onGround) catVelY = 9.5;
+                    catVelY -= 20 * dt;
+                    cat.position.y += catVelY * dt;
+
+                    if (cat.position.y < 1.1) {
+                        cat.position.y = 1.1;
+                        catVelY = 0;
+                    }
+
+                    cat.scale.y = THREE.MathUtils.lerp(cat.scale.y, 1.0, dt * 14);
+                    cat.rotation.x = THREE.MathUtils.lerp(cat.rotation.x, 0, dt * 8);
+                }
+            } else if (info.duck) {
+                const ducking = keys['ArrowDown'] || keys['KeyS'];
+                cat.position.y = THREE.MathUtils.lerp(cat.position.y, ducking ? 0.18 : 1.1, dt * 16);
+                cat.scale.y = THREE.MathUtils.lerp(cat.scale.y, ducking ? 0.45 : 1.0, dt * 14);
+                cat.rotation.x = THREE.MathUtils.lerp(cat.rotation.x, ducking ? 0.5 : 0, dt * 8);
+            } else {
+                cat.position.y = 1.1;
+                cat.scale.y = THREE.MathUtils.lerp(cat.scale.y, 1.0, dt * 14);
+                cat.rotation.x = THREE.MathUtils.lerp(cat.rotation.x, 0, dt * 8);
+            }
+
+            cat.rotation.z = THREE.MathUtils.lerp(
+                cat.rotation.z,
+                (keys['ArrowLeft'] || keys['KeyA']) ? 0.30 : (keys['ArrowRight'] || keys['KeyD']) ? -0.30 : 0,
+                dt * 10
+            );
+
+            if (cat.tailMesh) cat.tailMesh.rotation.z = Math.sin(Date.now() * 0.005) * 0.35;
+
+            spawnTimer -= dt;
+            if (spawnTimer <= 0) {
+                spawnObstacle();
+                const rate = THREE.MathUtils.lerp(info.spawnRate, info.spawnRate * 0.5, progress);
+                spawnTimer = rate * (0.65 + Math.random() * 0.55);
+            }
+
+            const levBoost = level * 0.045;
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const o = obstacles[i];
+                const spd = (info.baseSpeed + o.userData.spd + levBoost) * (1 + progress * 0.7) * 60 * dt;
+
+                if (o.userData.pattern === 'fence') {
+                    o.position.z += spd;
+                    if (o.position.z > 14) {
+                        scene.remove(o);
+                        obstacles.splice(i, 1);
+                        continue;
+                    }
+
+                    const dz = Math.abs(cat.position.z - o.position.z);
+                    const dx = Math.abs(cat.position.x - o.userData.laneX);
+                    if (dz < 1.2 && dx < o.userData.halfW) {
+                        if (cat.position.y < o.userData.fenceTop + 0.5) {
+                            scene.remove(o);
+                            obstacles.splice(i, 1);
+                            onGameOver();
+                            break;
+                        }
+                    }
+                    continue;
+                }
+
+                if (o.userData.pattern === 'barrier') {
+                    o.position.z += spd;
+                    if (o.position.z > 16) {
+                        scene.remove(o);
+                        obstacles.splice(i, 1);
+                        continue;
+                    }
+
+                    const dz = Math.abs(cat.position.z - o.position.z);
+                    if (dz < 1.4) {
+                        const wx1 = o.userData.barrierX1;
+                        const wx2 = o.userData.barrierX2;
+                        const cx = cat.position.x;
+                        const cy = cat.position.y;
+
+                        if (Math.abs(cx - wx1) < 0.72 || Math.abs(cx - wx2) < 0.72) {
+                            scene.remove(o);
+                            obstacles.splice(i, 1);
+                            onGameOver();
+                            break;
+                        }
+
+                        if (cx > wx1 + 0.65 && cx < wx2 - 0.65 && cy > 0.38) {
+                            scene.remove(o);
+                            obstacles.splice(i, 1);
+                            onGameOver();
+                            break;
+                        }
+                    }
+                    continue;
+                }
+
+                if (o.userData.pattern === 'falling') {
+                    o.position.y -= spd * 0.7;
+                } else {
+                    o.position.z += spd;
+                }
+                o.rotation.y += dt * 1.8;
+
+                if (o.position.z > 14 || o.position.y < -1.5) {
+                    scene.remove(o);
+                    obstacles.splice(i, 1);
+                    continue;
+                }
+
+                if (cat.position.distanceTo(o.position) < 1.15) {
+                    scene.remove(o);
+                    obstacles.splice(i, 1);
+                    onGameOver();
+                    break;
+                }
+            }
+        }
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.position.addScaledVector(p.vel, dt);
+        p.vel.y -= 9 * dt;
+        p.life -= dt * 1.3;
+        p.material.opacity = Math.max(0, p.life);
+        p.scale.setScalar(Math.max(0.01, p.life));
+
+        if (p.life <= 0) {
+            scene.remove(p);
+            particles.splice(i, 1);
+        }
+    }
+
+    camera.position.x += (cat.position.x * 0.25 - camera.position.x) * dt * 7;
+    camera.position.y += (cat.position.y * 0.18 + 5.5 - camera.position.y) * dt * 7;
+    camera.lookAt(cat.position.x * 0.25, cat.position.y * 0.15 + 1, -8);
+
+    renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
